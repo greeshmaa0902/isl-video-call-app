@@ -3,7 +3,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
 import socket from "../socket";
 import Peer from "simple-peer";
 
@@ -28,11 +30,57 @@ const Call = () => {
 
   const [callAccepted, setCallAccepted] =
     useState(false);
+  
+  
+  const [caption, setCaption] = useState("");
+
+  const recognitionRef = useRef(null);
+
+    
 
   const peerRef = useRef(null);
 
   useEffect(() => {
     startVideo();
+    if (SpeechRecognition) {
+
+  const recognition = new SpeechRecognition();
+
+  recognition.continuous = true;
+
+  recognition.interimResults = true;
+
+  recognition.lang = "en-US";
+
+  recognition.onresult = (event) => {
+
+    let transcript = "";
+
+    for (
+      let i = event.resultIndex;
+      i < event.results.length;
+      i++
+    ) {
+      transcript += event.results[i][0].transcript;
+    }
+
+    setCaption(transcript);
+  };
+
+  recognition.onerror = (e) => {
+    console.log("Speech Error:", e);
+  };
+  recognition.onend = () => {
+  console.log("Speech Recognition Ended");
+
+  if (recognitionRef.current) {
+    recognitionRef.current.start();
+  }
+};
+
+  recognitionRef.current = recognition;
+
+}
 
     socket.on("connect", () => {
       console.log(
@@ -73,14 +121,37 @@ const Call = () => {
       socket.off("callAccepted");
     };
   }, []);
+   const startListening = () => {
 
+  if (recognitionRef.current) {
+
+    recognitionRef.current.start();
+
+    console.log("Speech Recognition Started");
+
+  }
+
+};
+
+const stopListening = () => {
+
+  if (recognitionRef.current) {
+
+    recognitionRef.current.stop();
+
+    console.log("Speech Recognition Stopped");
+
+  }
+
+};
   const startVideo = async () => {
+   
   try {
     const currentStream =
-      await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false,
-      });
+    await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true,
+    });
 
     console.log("CAMERA STARTED");
 
@@ -243,7 +314,55 @@ const Call = () => {
       >
         Call User
       </button>
+      <div style={{ marginTop: "20px" }}>
+  <button
+    onClick={startListening}
+    style={{
+      padding: "10px 20px",
+      background: "green",
+      color: "white",
+      border: "none",
+      borderRadius: "8px",
+      marginRight: "10px",
+      cursor: "pointer",
+    }}
+  >
+    Start Caption
+  </button>
 
+  <button
+    onClick={stopListening}
+    style={{
+      padding: "10px 20px",
+      background: "red",
+      color: "white",
+      border: "none",
+      borderRadius: "8px",
+      cursor: "pointer",
+    }}
+  >
+    Stop Caption
+  </button>
+</div>
+<div
+  style={{
+    marginTop: "30px",
+    background: "#1e293b",
+    padding: "20px",
+    borderRadius: "10px",
+  }}
+>
+  <h3>Live Caption</h3>
+
+  <p
+    style={{
+      fontSize: "20px",
+      color: "#22c55e",
+    }}
+  >
+    {caption}
+  </p>
+</div>
       {receivingCall && !callAccepted && (
         <div style={{ marginTop: "20px" }}>
           <h3>Incoming Call...</h3>
