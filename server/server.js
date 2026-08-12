@@ -60,7 +60,10 @@ io.on("connection", (socket) => {
       data.signal
     );
   });
-
+  // Send live captions
+   socket.on("sendCaption", (data) => {
+     io.to(data.to).emit("receiveCaption", data.caption);
+  });
   socket.on("disconnect", () => {
     console.log(
       "User Disconnected:",
