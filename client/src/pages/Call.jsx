@@ -36,11 +36,11 @@ const Call = () => {
   const [caption, setCaption] = useState("");
   const [remoteCaption, setRemoteCaption] = useState("");
   const recognitionRef = useRef(null);
-
+  const recognitionRunningRef = useRef(false);
     
 
   const peerRef = useRef(null);
-
+  const remoteIdRef = useRef("");
   useEffect(() => {
     
     if (SpeechRecognition) {
@@ -53,35 +53,55 @@ const Call = () => {
 
   recognition.lang = "en-US";
 
-  recognition.onresult = (event) => {
+ recognition.onresult = (event) => {
+  let transcript = "";
 
-    let transcript = "";
+  for (
+    let i = event.resultIndex;
+    i < event.results.length;
+    i++
+  ) {
+    transcript += event.results[i][0].transcript;
+  }
 
-    for (
-      let i = event.resultIndex;
-      i < event.results.length;
-      i++
-    ) {
-      transcript += event.results[i][0].transcript;
-    }
+  setCaption(transcript);
 
-    setCaption(transcript);
-    if (remoteId) {
-     socket.emit("sendCaption", {
-     to: remoteId,
-     caption: transcript,
-     });
-    }
-  };
+  console.log("MY SOCKET ID:", myId);
+console.log("REMOTE SOCKET ID:", remoteIdRef.current);
+console.log("CAPTION:", transcript);
 
-  recognition.onerror = (e) => {
-    console.log("Speech Error:", e);
-  };
+if (remoteIdRef.current) {
+  console.log(
+    "SENDING CAPTION TO:",
+    remoteIdRef.current
+  );
+
+  socket.emit("sendCaption", {
+    to: remoteIdRef.current,
+    caption: transcript,
+  });
+} else {
+  console.log(
+    "NO REMOTE SOCKET ID — CAPTION NOT SENT"
+  );
+}
+};
+recognition.onerror = (e) => {
+  console.log("Speech Error:", e);
+};
+
+recognition.onend = () => {
+  console.log("Speech Recognition Ended");
+
+  recognitionRunningRef.current = false;
+};
+
+recognitionRef.current = recognition;
   recognition.onend = () => {
   console.log("Speech Recognition Ended");
 
   if (recognitionRef.current) {
-    recognitionRef.current.start();
+    
   }
 };
 
@@ -132,28 +152,29 @@ const Call = () => {
       socket.off("receiveCaption");
     };
   }, []);
+   
    const startListening = () => {
-
-  if (recognitionRef.current) {
-
+  if (
+    recognitionRef.current &&
+    !recognitionRunningRef.current
+  ) {
     recognitionRef.current.start();
+    recognitionRunningRef.current = true;
 
     console.log("Speech Recognition Started");
-
   }
-
 };
 
 const stopListening = () => {
-
-  if (recognitionRef.current) {
-
+  if (
+    recognitionRef.current &&
+    recognitionRunningRef.current
+  ) {
     recognitionRef.current.stop();
+    recognitionRunningRef.current = false;
 
     console.log("Speech Recognition Stopped");
-
   }
-
 };
   const startVideo = async () => {
    
@@ -301,9 +322,10 @@ const stopListening = () => {
         type="text"
         placeholder="Enter Remote Socket ID"
         value={remoteId}
-        onChange={(e) =>
-          setRemoteId(e.target.value)
-        }
+        onChange={(e) => {
+  setRemoteId(e.target.value);
+  remoteIdRef.current = e.target.value;
+}}
         style={{
           width: "100%",
           padding: "12px",
