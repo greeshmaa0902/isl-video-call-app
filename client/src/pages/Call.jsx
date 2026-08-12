@@ -15,6 +15,7 @@ const Call = () => {
   const remoteVideoRef = useRef(null);
 
   const [stream, setStream] = useState(null);
+  const [cameraStarted, setCameraStarted] = useState(false);
   const [myId, setMyId] = useState("");
   const [remoteId, setRemoteId] =
     useState("");
@@ -33,7 +34,7 @@ const Call = () => {
   
   
   const [caption, setCaption] = useState("");
-
+  const [remoteCaption, setRemoteCaption] = useState("");
   const recognitionRef = useRef(null);
 
     
@@ -41,7 +42,7 @@ const Call = () => {
   const peerRef = useRef(null);
 
   useEffect(() => {
-    startVideo();
+    
     if (SpeechRecognition) {
 
   const recognition = new SpeechRecognition();
@@ -65,6 +66,12 @@ const Call = () => {
     }
 
     setCaption(transcript);
+    if (remoteId) {
+     socket.emit("sendCaption", {
+     to: remoteId,
+     caption: transcript,
+     });
+    }
   };
 
   recognition.onerror = (e) => {
@@ -113,12 +120,16 @@ const Call = () => {
         peerRef.current.signal(signal);
       }
     });
+    socket.on("receiveCaption", (text) => {
+      setRemoteCaption(text);
+    });
 
     return () => {
       socket.off("connect");
       socket.off("me");
       socket.off("callUser");
       socket.off("callAccepted");
+      socket.off("receiveCaption");
     };
   }, []);
    const startListening = () => {
@@ -156,6 +167,7 @@ const stopListening = () => {
     console.log("CAMERA STARTED");
 
     setStream(currentStream);
+    setCameraStarted(true);
 
     if (localVideoRef.current) {
       localVideoRef.current.srcObject =
@@ -300,7 +312,21 @@ const stopListening = () => {
           marginBottom: "20px",
         }}
       />
-
+      <button
+  onClick={startVideo}
+  disabled={cameraStarted}
+  style={{
+    padding: "12px 20px",
+    background: cameraStarted ? "#6b7280" : "#16a34a",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    marginRight: "15px",
+  }}
+>
+  {cameraStarted ? "Camera Started" : "Start Camera"}
+</button>
       <button
         onClick={callUser}
         style={{
@@ -353,7 +379,25 @@ const stopListening = () => {
   }}
 >
   <h3>Live Caption</h3>
+  <div
+  style={{
+    marginTop: "20px",
+    background: "#1e293b",
+    padding: "20px",
+    borderRadius: "10px",
+  }}
+>
+  <h3>Remote User Caption</h3>
 
+  <p
+    style={{
+      fontSize: "20px",
+      color: "#38bdf8",
+    }}
+  >
+    {remoteCaption}
+  </p>
+</div>
   <p
     style={{
       fontSize: "20px",
