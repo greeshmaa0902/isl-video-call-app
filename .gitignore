@@ -1,0 +1,6 @@
+﻿.venv/
+data/
+data_mendeley/
+models/
+__pycache__/
+*.pyc
