@@ -8,6 +8,7 @@ const SpeechRecognition =
   window.webkitSpeechRecognition;
 import socket from "../socket";
 import Peer from "simple-peer";
+import { useISLCaption } from "../useISLCaption";
 
 
 const Call = () => {
@@ -35,6 +36,17 @@ const Call = () => {
   
   const [caption, setCaption] = useState("");
   const [remoteCaption, setRemoteCaption] = useState("");
+    const [islEnabled, setIslEnabled] = useState(false);
+
+  const { caption: islCaption, clear: clearIsl } = useISLCaption(
+    localVideoRef,
+    islEnabled && cameraStarted,
+    (text) => {
+      if (remoteIdRef.current) {
+        socket.emit("sendCaption", { to: remoteIdRef.current, caption: text });
+      }
+    }
+  );
   const recognitionRef = useRef(null);
   const recognitionRunningRef = useRef(false);
     
@@ -391,6 +403,17 @@ const stopListening = () => {
   >
     Stop Caption
   </button>
+    <button
+    onClick={() => setIslEnabled((v) => !v)}
+    style={{
+      padding: "10px 20px",
+      background: islEnabled ? "#dc2626" : "#7c3aed",
+      color: "white", border: "none", borderRadius: "8px",
+      marginLeft: "10px", cursor: "pointer",
+    }}
+  >
+    {islEnabled ? "Stop ISL" : "Start ISL"}
+  </button>
 </div>
 <div
   style={{
@@ -418,6 +441,13 @@ const stopListening = () => {
     }}
   >
     {remoteCaption}
+  </p>
+    <h3>ISL Caption</h3>
+  <p style={{ fontSize: "24px", color: "#a78bfa", letterSpacing: "2px" }}>
+    {islCaption}
+    <button onClick={clearIsl} style={{ marginLeft: "15px", fontSize: "12px" }}>
+      Clear
+    </button>
   </p>
 </div>
   <p
