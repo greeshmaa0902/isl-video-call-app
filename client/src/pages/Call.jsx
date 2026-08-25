@@ -135,6 +135,11 @@ recognitionRef.current = recognition;
       setMyId(id);
     });
 
+    if (socket.connected) {
+      console.log("SOCKET ALREADY CONNECTED:", socket.id);
+      setMyId(socket.id);
+    }
+
     socket.on("callUser", (data) => {
       console.log("INCOMING CALL");
 
