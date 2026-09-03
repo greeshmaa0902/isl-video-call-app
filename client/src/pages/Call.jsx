@@ -9,7 +9,7 @@ const SpeechRecognition =
 import socket from "../socket";
 import Peer from "simple-peer";
 import { useISLCaption } from "../useISLCaption";
-
+import { useWordCaption } from "../useWordCaption";
 
 const Call = () => {
   const localVideoRef = useRef(null);
@@ -47,6 +47,21 @@ const Call = () => {
       }
     }
   );
+
+  const [wordEnabled, setWordEnabled] = useState(false);
+  const [wordCaption, setWordCaption] = useState("");
+
+  const { lastWord } = useWordCaption(
+    localVideoRef,
+    wordEnabled && cameraStarted,
+    (word, conf) => {
+      setWordCaption((prev) => `${prev} ${word}`.trim().slice(-100));
+      if (remoteIdRef.current) {
+        socket.emit("sendCaption", { to: remoteIdRef.current, caption: `[${word}]` });
+      }
+    }
+  );
+
   const recognitionRef = useRef(null);
   const recognitionRunningRef = useRef(false);
     
@@ -141,12 +156,17 @@ recognitionRef.current = recognition;
     }
 
     socket.on("callUser", (data) => {
-      console.log("INCOMING CALL");
+  console.log("INCOMING CALL");
+  console.log("CALLER SOCKET ID:", data.from);
 
-      setReceivingCall(true);
-      setCaller(data.from);
-      setCallerSignal(data.signal);
-    });
+  setReceivingCall(true);
+  setCaller(data.from);
+  setCallerSignal(data.signal);
+
+  // Automatically remember the caller as the remote user
+  setRemoteId(data.from);
+  remoteIdRef.current = data.from;
+});
 
     socket.on("callAccepted", (signal) => {
       console.log("CALL ACCEPTED");
@@ -228,7 +248,7 @@ const stopListening = () => {
       alert("Enter remote socket ID");
       return;
     }
-
+    remoteIdRef.current = remoteId;
     console.log("CALLING:", remoteId);
 
     const peer = new Peer({
@@ -419,6 +439,17 @@ const stopListening = () => {
   >
     {islEnabled ? "Stop ISL" : "Start ISL"}
   </button>
+  <button
+    onClick={() => setWordEnabled((v) => !v)}
+    style={{
+      padding: "10px 20px",
+      background: wordEnabled ? "#dc2626" : "#0891b2",
+      color: "white", border: "none", borderRadius: "8px",
+      marginLeft: "10px", cursor: "pointer",
+    }}
+  >
+    {wordEnabled ? "Stop Words" : "Start Words"}
+  </button>
 </div>
 <div
   style={{
@@ -451,6 +482,13 @@ const stopListening = () => {
   <p style={{ fontSize: "24px", color: "#a78bfa", letterSpacing: "2px" }}>
     {islCaption}
     <button onClick={clearIsl} style={{ marginLeft: "15px", fontSize: "12px" }}>
+      Clear
+    </button>
+  </p>
+  <h3>Word Caption</h3>
+  <p style={{ fontSize: "22px", color: "#22d3ee", letterSpacing: "1px" }}>
+    {wordCaption}
+    <button onClick={() => setWordCaption("")} style={{ marginLeft: "15px", fontSize: "12px" }}>
       Clear
     </button>
   </p>

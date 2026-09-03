@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Word Sign Recorder</title>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; padding: 20px; }
+    video { width: 480px; height: 360px; background: black; border-radius: 12px; border: 3px solid white; transform: scaleX(-1); }
+    button { padding: 12px 20px; margin: 8px 8px 8px 0; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+    #recordBtn { background: #16a34a; color: white; }
+    #recordBtn.recording { background: #dc2626; }
+    #saveBtn { background: #3b82f6; color: white; }
+    #status { font-size: 18px; margin: 12px 0; }
+    #frameCount { color: #22d3ee; font-weight: bold; }
+    #wordInput { padding: 10px; font-size: 16px; border-radius: 6px; border: none; margin-right: 10px; }
+    #samplesList { margin-top: 20px; background: #1e293b; padding: 16px; border-radius: 8px; max-height: 300px; overflow-y: auto; }
+    .sample-row { padding: 6px 0; border-bottom: 1px solid #334155; }
+  </style>
+</head>
+<body>
+  <h1>Word Sign Recorder</h1>
+  <p>Watch the reference clip on Zenodo first, then record yourself imitating it here.</p>
+
+  <input id="wordInput" type="text" placeholder="Word (e.g. Hello)" value="Hello" />
+  <br>
+  <video id="video" autoplay muted playsinline></video>
+  <br>
+  <button id="recordBtn">Start Recording</button>
+  <button id="saveBtn">Download All Samples (.json)</button>
+
+  <div id="status">Click "Start Recording", perform the sign, then click again to stop.</div>
+  <div>Frames captured: <span id="frameCount">0</span></div>
+
+  <div id="samplesList"><b>Recorded samples (this session):</b></div>
+
+  <script type="module">
+    const LM = 21;
+    const HAND_DIM = LM * 3;
+
+    function extractTwoHandVectorMirrored(results) {
+      const left = new Float32Array(HAND_DIM);
+      const right = new Float32Array(HAND_DIM);
+      let n = 0;
+      if (results.multiHandLandmarks && results.multiHandedness) {
+        n = results.multiHandLandmarks.length;
+        for (let h = 0; h < n; h++) {
+          const lm = results.multiHandLandmarks[h];
+          const label = results.multiHandedness[h].label;
+          const target = label === "Left" ? right : left;
+          for (let i = 0; i < LM; i++) {
+            target[i * 3]     = 1.0 - lm[i].x;
+            target[i * 3 + 1] = lm[i].y;
+            target[i * 3 + 2] = lm[i].z;
+          }
+        }
+      }
+      const vec = new Float32Array(126);
+      vec.set(left, 0);
+      vec.set(right, HAND_DIM);
+      return { vec, n };
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) return resolve();
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.body.appendChild(s);
+      });
+    }
+
+    const video = document.getElementById("video");
+    const recordBtn = document.getElementById("recordBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const status = document.getElementById("status");
+    const frameCountEl = document.getElementById("frameCount");
+    const samplesList = document.getElementById("samplesList");
+    const wordInput = document.getElementById("wordInput");
+
+    let recording = false;
+    let currentFrames = [];
+    let allSamples = [];
+    let hands = null;
+    let raf = null;
+
+    async function init() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+
+      await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
+      const Hands = window.Hands;
+      hands = new Hands({
+        locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+      });
+      hands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6,
+      });
+
+      hands.onResults((results) => {
+        if (!recording) return;
+        const { vec, n } = extractTwoHandVectorMirrored(results);
+        if (n > 0) {
+          currentFrames.push(Array.from(vec));
+          frameCountEl.textContent = currentFrames.length;
+        }
+      });
+
+      const loop = async () => {
+        if (video.readyState >= 2) {
+          try { await hands.send({ image: video }); } catch {}
+        }
+        raf = requestAnimationFrame(loop);
+      };
+      loop();
+
+      status.textContent = "Camera ready. Click Start Recording, then perform the sign.";
+    }
+
+    recordBtn.onclick = () => {
+      if (!recording) {
+        recording = true;
+        currentFrames = [];
+        frameCountEl.textContent = "0";
+        recordBtn.textContent = "Stop Recording";
+        recordBtn.classList.add("recording");
+        status.textContent = `Recording "${wordInput.value}"... perform the sign now.`;
+      } else {
+        recording = false;
+        recordBtn.textContent = "Start Recording";
+        recordBtn.classList.remove("recording");
+
+        if (currentFrames.length < 10) {
+          status.textContent = `Too short (${currentFrames.length} frames) -- discarded. Try again.`;
+          return;
+        }
+
+        const word = wordInput.value.trim();
+        allSamples.push({ word, seq: currentFrames });
+        status.textContent = `Saved sample #${allSamples.filter(s => s.word === word).length} for "${word}" (${currentFrames.length} frames).`;
+
+        const row = document.createElement("div");
+        row.className = "sample-row";
+        row.textContent = `${word} - ${currentFrames.length} frames`;
+        samplesList.appendChild(row);
+      }
+    };
+
+    saveBtn.onclick = () => {
+      const blob = new Blob([JSON.stringify(allSamples)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "my_word_samples.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    init().catch(e => {
+      status.textContent = "ERROR: " + e.message;
+      console.error(e);
+    });
+  </script>
+</body>
+</html>
