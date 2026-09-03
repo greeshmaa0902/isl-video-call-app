@@ -140,13 +140,18 @@ recognitionRef.current = recognition;
       setMyId(socket.id);
     }
 
-    socket.on("callUser", (data) => {
-      console.log("INCOMING CALL");
+   socket.on("callUser", (data) => {
+  console.log("INCOMING CALL");
+  console.log("CALLER SOCKET ID:", data.from);
 
-      setReceivingCall(true);
-      setCaller(data.from);
-      setCallerSignal(data.signal);
-    });
+  setReceivingCall(true);
+  setCaller(data.from);
+  setCallerSignal(data.signal);
+
+  // Automatically remember the caller as the remote user
+  setRemoteId(data.from);
+  remoteIdRef.current = data.from;
+});
 
     socket.on("callAccepted", (signal) => {
       console.log("CALL ACCEPTED");
@@ -229,6 +234,7 @@ const stopListening = () => {
       return;
     }
 
+    remoteIdRef.current = remoteId;
     console.log("CALLING:", remoteId);
 
     const peer = new Peer({
@@ -270,6 +276,8 @@ const stopListening = () => {
       alert("Camera not ready");
       return;
     }
+    remoteIdRef.current = caller;
+    setRemoteId(caller);
 
     setCallAccepted(true);
 
