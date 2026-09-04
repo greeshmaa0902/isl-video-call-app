@@ -36,6 +36,7 @@ const Call = () => {
   
   const [caption, setCaption] = useState("");
   const [remoteCaption, setRemoteCaption] = useState("");
+  const [captionRunning, setCaptionRunning] = useState(false);
     const [islEnabled, setIslEnabled] = useState(false);
 
   const { caption: islCaption, clear: clearIsl } = useISLCaption(
@@ -121,15 +122,7 @@ recognition.onend = () => {
   console.log("Speech Recognition Ended");
 
   recognitionRunningRef.current = false;
-};
-
-recognitionRef.current = recognition;
-  recognition.onend = () => {
-  console.log("Speech Recognition Ended");
-
-  if (recognitionRef.current) {
-    
-  }
+  setCaptionRunning(false);
 };
 
   recognitionRef.current = recognition;
@@ -197,18 +190,20 @@ recognitionRef.current = recognition;
   ) {
     recognitionRef.current.start();
     recognitionRunningRef.current = true;
+    setCaptionRunning(true);
 
     console.log("Speech Recognition Started");
   }
 };
 
-const stopListening = () => {
+  const stopListening = () => {
   if (
     recognitionRef.current &&
     recognitionRunningRef.current
   ) {
     recognitionRef.current.stop();
     recognitionRunningRef.current = false;
+    setCaptionRunning(false);
 
     console.log("Speech Recognition Stopped");
   }
@@ -402,34 +397,22 @@ const stopListening = () => {
         Call User
       </button>
       <div style={{ marginTop: "20px" }}>
-  <button
-    onClick={startListening}
-    style={{
-      padding: "10px 20px",
-      background: "green",
-      color: "white",
-      border: "none",
-      borderRadius: "8px",
-      marginRight: "10px",
-      cursor: "pointer",
-    }}
-  >
-    Start Caption
-  </button>
+  
+    <button
+  onClick={captionRunning ? stopListening : startListening}
+  style={{
+    padding: "10px 20px",
+    background: captionRunning ? "red" : "green",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    marginRight: "10px",
+    cursor: "pointer",
+  }}
+>
+  {captionRunning ? "Stop Caption" : "Start Caption"}
+</button>
 
-  <button
-    onClick={stopListening}
-    style={{
-      padding: "10px 20px",
-      background: "red",
-      color: "white",
-      border: "none",
-      borderRadius: "8px",
-      cursor: "pointer",
-    }}
-  >
-    Stop Caption
-  </button>
     <button
     onClick={() => setIslEnabled((v) => !v)}
     style={{
