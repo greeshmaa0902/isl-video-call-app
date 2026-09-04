@@ -62,6 +62,8 @@ io.on("connection", (socket) => {
   });
   // Send live captions
    socket.on("sendCaption", (data) => {
+    console.log("SERVER RECEIVED CAPTION:", data);
+    console.log("SENDING CAPTION TO:", data.to);
      io.to(data.to).emit("receiveCaption", data.caption);
   });
   socket.on("disconnect", () => {
